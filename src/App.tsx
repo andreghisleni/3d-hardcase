@@ -1,5 +1,5 @@
-import { Printer } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { Download, Printer, RotateCcw, Upload } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,27 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BOMPrint } from './components/BOMPrint';
 import { CaseCanvas } from './components/CaseCanvas';
-import { type CaseConfig, calculateHardcase } from './lib/calculator';
+import { NestingBoard } from './components/NestingBoard';
+import {
+  type CaseConfig,
+  calculateHardcase,
+  calculateNesting,
+} from './lib/calculator';
+
+const DISTINCT_COLORS = [
+  '#fecaca',
+  '#bbf7d0',
+  '#bfdbfe',
+  '#fef08a',
+  '#e9d5ff',
+  '#fed7aa',
+  '#fbcfe8',
+  '#99f6e4',
+  '#fecdd3',
+  '#bae6fd',
+  '#ddd6fe',
+  '#a7f3d0',
+];
 
 export default function App() {
   const [config, setConfig] = useState<CaseConfig>({
@@ -29,12 +49,76 @@ export default function App() {
     drawerThickness: 6,
     lidOffset: 150,
     drawerOffset: 0,
+    explodeOffset: 0,
+    sheetWidth: 2200,
+    sheetHeight: 1600,
   });
 
-  // ESTADO PARA A MÁGICA DO HIGHLIGHT 3D
   const [highlighted, setHighlighted] = useState<string[]>([]);
-
   const bom = useMemo(() => calculateHardcase(config), [config]);
+  const sheets = useMemo(
+    () =>
+      calculateNesting(
+        bom.woodCuts,
+        config.sheetWidth,
+        config.sheetHeight,
+        config.sawKerf
+      ),
+    [bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf]
+  );
+
+  const colorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    bom.woodCuts.forEach((cut, index) => {
+      map[cut.part] = DISTINCT_COLORS[index % DISTINCT_COLORS.length];
+    });
+    return map;
+  }, [bom.woodCuts]);
+
+  const [nestingSheets, setNestingSheets] = useState<any[]>([]);
+
+  // Inicializa o layout quando o BOM muda
+  useEffect(() => {
+    const autoSheets = calculateNesting(
+      bom.woodCuts,
+      config.sheetWidth,
+      config.sheetHeight,
+      config.sawKerf
+    );
+    setNestingSheets(
+      autoSheets.map((s, sIdx) => ({
+        ...s,
+        items: s.items.map((it: any, i: number) => ({
+          ...it,
+          id: `s${sIdx}-i${i}`,
+        })),
+      }))
+    );
+  }, [bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf]);
+
+  const handleExport = () => {
+    const project = { config, nestingSheets, date: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(project, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `case-${config.units}U-${config.depth}mm.json`;
+    a.click();
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = JSON.parse(ev.target?.result as string);
+      if (data.config) setConfig(data.config);
+      if (data.nestingSheets) setNestingSheets(data.nestingSheets);
+    };
+    reader.readAsText(file);
+  };
 
   const handleNumberChange = (key: keyof CaseConfig, value: string) => {
     const num = Number.parseInt(value, 10);
@@ -53,17 +137,13 @@ export default function App() {
 
   const hasAnyLid = config.hasFrontLid || config.hasBackLid;
   const printRef = useRef<HTMLDivElement>(null);
-
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-  });
+  const handlePrint = useReactToPrint({ contentRef: printRef });
 
   return (
     <div className="flex min-h-screen flex-col gap-8 bg-background p-8 text-foreground lg:flex-row">
-      {/* Coluna Esquerda: Controles com TABS Internas */}
-      <Card className='flex max-h-[90vh] w-full shrink-0 flex-col overflow-hidden lg:w-[450px]'>
-        <Tabs className='flex h-full w-full flex-col' defaultValue="config">
-          <CardHeader className='shrink-0 border-b pb-4'>
+      <Card className="flex max-h-[90vh] w-full shrink-0 flex-col overflow-hidden lg:w-[450px]">
+        <Tabs className="flex h-full w-full flex-col" defaultValue="config">
+          <CardHeader className="shrink-0 border-b pb-4">
             <CardTitle className="mb-4">Construtor de Hardcase</CardTitle>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="config">Configuração</TabsTrigger>
@@ -71,12 +151,10 @@ export default function App() {
             </TabsList>
           </CardHeader>
 
-          {/* TAB 1: OS CONTROLES ANTIGOS */}
           <TabsContent
-            className='m-0 flex-1 space-y-8 overflow-y-auto p-6'
+            className="m-0 flex-1 space-y-8 overflow-y-auto p-6"
             value="config"
           >
-            {/* Dimensões Principais */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Unidades de Rack (U)</Label>
@@ -97,7 +175,6 @@ export default function App() {
                 value={[config.units]}
               />
             </div>
-
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Profundidade Útil (mm)</Label>
@@ -119,7 +196,6 @@ export default function App() {
               />
             </div>
 
-            {/* Madeira Principal */}
             <div className="space-y-4 border-border border-t pt-4">
               <h3 className="font-semibold text-muted-foreground text-sm">
                 Madeira (Corpo e Tampas)
@@ -146,7 +222,6 @@ export default function App() {
               />
             </div>
 
-            {/* Gaveta */}
             <div className="space-y-4 border-border border-t pt-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-muted-foreground text-sm">
@@ -159,7 +234,6 @@ export default function App() {
                   }
                 />
               </div>
-
               {config.hasDrawer && (
                 <div className="space-y-6 pt-2">
                   <div className="space-y-3">
@@ -210,7 +284,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Tampas e Método */}
             <div className="space-y-4 border-border border-t pt-4">
               <h3 className="font-semibold text-muted-foreground text-sm">
                 Tampas e Construção
@@ -233,7 +306,6 @@ export default function App() {
                   }
                 />
               </div>
-
               {hasAnyLid && (
                 <div className="space-y-5 pt-2">
                   <div className="flex items-center justify-between">
@@ -260,7 +332,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-
               <RadioGroup
                 className="mt-4 flex flex-col space-y-2"
                 onValueChange={(v: 'separate' | 'cutoff') =>
@@ -283,15 +354,15 @@ export default function App() {
               </RadioGroup>
             </div>
 
-            {/* Controles 3D */}
+            {/* NOVOS CONTROLES 3D */}
             <div className="space-y-4 rounded-lg border-border border-t bg-muted/20 p-4 pt-4">
               <h3 className="mb-3 font-semibold text-primary text-sm">
-                Controles do Visualizador 3D
+                Animações 3D
               </h3>
               {hasAnyLid && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Afastamento da Tampa (mm)</Label>
+                    <Label>Afastar Tampas</Label>
                     <Input
                       className="h-8 w-16 text-right"
                       onChange={(e) =>
@@ -315,7 +386,7 @@ export default function App() {
               {config.hasDrawer && (
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
-                    <Label>Abrir Gaveta (mm)</Label>
+                    <Label>Abrir Gaveta</Label>
                     <Input
                       className="h-8 w-16 text-right"
                       onChange={(e) =>
@@ -336,79 +407,97 @@ export default function App() {
                   />
                 </div>
               )}
+              <div className="space-y-3 border-border border-t pt-2">
+                <div className="flex items-center justify-between">
+                  <Label>Vista Explodida (Madeira)</Label>
+                  <Input
+                    className="h-8 w-16 text-right"
+                    onChange={(e) =>
+                      handleNumberChange('explodeOffset', e.target.value)
+                    }
+                    type="number"
+                    value={config.explodeOffset}
+                  />
+                </div>
+                <Slider
+                  max={150}
+                  min={0}
+                  onValueChange={([v]) =>
+                    setConfig((prev) => ({ ...prev, explodeOffset: v }))
+                  }
+                  step={5}
+                  value={[config.explodeOffset]}
+                />
+              </div>
             </div>
           </TabsContent>
 
-          {/* TAB 2: SELEÇÃO INTERATIVA DE PEÇAS */}
           <TabsContent
-            className='m-0 flex-1 space-y-6 overflow-y-auto p-6'
+            className="m-0 flex-1 space-y-6 overflow-y-auto p-6"
             value="parts"
           >
-            <p className='mb-4 text-muted-foreground text-sm'>
-              Selecione as peças abaixo para destacá-las no modelo 3D ao lado.
+            <p className="mb-4 text-muted-foreground text-sm">
+              Selecione as peças para destacá-las no modelo 3D ao lado.
             </p>
-
             <div>
-              <h4 className='mb-3 border-border border-b pb-1 font-bold'>
+              <h4 className="mb-3 border-border border-b pb-1 font-bold">
                 Madeira
               </h4>
               <div className="space-y-2">
                 {bom.woodCuts.map((cut) => (
                   <label
-                    className='flex cursor-pointer items-center space-x-3'
+                    className="flex cursor-pointer items-center space-x-3"
                     key={cut.part}
                   >
                     <input
                       checked={highlighted.includes(cut.part)}
-                      className='h-4 w-4 accent-primary'
+                      className="h-4 w-4 accent-primary"
                       onChange={() => toggleHighlight(cut.part)}
                       type="checkbox"
                     />
-                    <span className='font-medium text-sm'>{cut.part}</span>
+                    <span className="font-medium text-sm">{cut.part}</span>
                   </label>
                 ))}
               </div>
             </div>
-
             <div>
-              <h4 className='mt-6 mb-3 border-border border-b pb-1 font-bold'>
+              <h4 className="mt-6 mb-3 border-border border-b pb-1 font-bold">
                 Alumínio
               </h4>
               <div className="space-y-2">
                 {bom.aluminum.map((al) => (
                   <label
-                    className='flex cursor-pointer items-center space-x-3'
+                    className="flex cursor-pointer items-center space-x-3"
                     key={al.profile}
                   >
                     <input
                       checked={highlighted.includes(al.profile)}
-                      className='h-4 w-4 accent-primary'
+                      className="h-4 w-4 accent-primary"
                       onChange={() => toggleHighlight(al.profile)}
                       type="checkbox"
                     />
-                    <span className='font-medium text-sm'>{al.profile}</span>
+                    <span className="font-medium text-sm">{al.profile}</span>
                   </label>
                 ))}
               </div>
             </div>
-
             <div>
-              <h4 className='mt-6 mb-3 border-border border-b pb-1 font-bold'>
+              <h4 className="mt-6 mb-3 border-border border-b pb-1 font-bold">
                 Ferragens
               </h4>
               <div className="space-y-2">
                 {bom.hardware.map((hw) => (
                   <label
-                    className='flex cursor-pointer items-center space-x-3'
+                    className="flex cursor-pointer items-center space-x-3"
                     key={hw.item}
                   >
                     <input
                       checked={highlighted.includes(hw.item)}
-                      className='h-4 w-4 accent-primary'
+                      className="h-4 w-4 accent-primary"
                       onChange={() => toggleHighlight(hw.item)}
                       type="checkbox"
                     />
-                    <span className='font-medium text-sm'>{hw.item}</span>
+                    <span className="font-medium text-sm">{hw.item}</span>
                   </label>
                 ))}
               </div>
@@ -417,35 +506,48 @@ export default function App() {
         </Tabs>
       </Card>
 
-      {/* Coluna Direita: Tabs do Visualizador e BOM (sem alterações maiores) */}
       <div className="min-w-0 flex-1">
         <Tabs className="w-full" defaultValue="3d">
           <div className="mb-6 flex items-center justify-between">
-            <TabsList className="grid w-[400px] grid-cols-2">
+            <TabsList className="grid w-[450px] grid-cols-3">
               <TabsTrigger value="3d">Visualizador 3D</TabsTrigger>
               <TabsTrigger value="bom">Lista de Materiais</TabsTrigger>
+              <TabsTrigger value="nesting">Plano de Corte</TabsTrigger>
             </TabsList>
 
-            <Button className="gap-2" onClick={handlePrint} variant="outline">
-              <Printer className="h-4 w-4" /> Exportar para Oficina
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleExport} variant="outline">
+                <Download className="mr-2 h-4 w-4" /> Salvar Projeto
+              </Button>
+              <label className="cursor-pointer">
+                <div className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 font-medium text-sm hover:bg-accent">
+                  <Upload className="mr-2 h-4 w-4" /> Abrir Projeto
+                </div>
+                <input
+                  accept=".json"
+                  className="hidden"
+                  onChange={handleImport}
+                  type="file"
+                />
+              </label>
+              <Button onClick={handlePrint}>
+                <Printer className="mr-2 h-4 w-4" /> PDF Oficina
+              </Button>
+            </div>
           </div>
 
           <TabsContent className="m-0" value="3d">
-            <div className="h-[700px] max-h-[85vh] w-full">
-              {/* PASSANDO AS PEÇAS HIGHLIGHTED PARA O 3D */}
+            <div className="h-175 max-h-[85vh] w-full">
               <CaseCanvas config={config} highlighted={highlighted} />
             </div>
           </TabsContent>
 
           <TabsContent className="m-0" value="bom">
-            {/* O conteúdo do BOM em texto continua igual ao que você enviou */}
             <Card>
               <CardHeader>
                 <CardTitle>Lista de Cortes e Materiais</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-1 gap-8 xl:grid-cols-2">
-                {/* ... (renderização do BOM) ... */}
                 <div>
                   <h3 className="mb-4 border-border border-b pb-2 font-bold text-lg">
                     Cortes de Madeira
@@ -507,10 +609,131 @@ export default function App() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* NOVA TAB: PLANO DE CORTE (NESTING) */}
+          <TabsContent className="m-0" value="nesting">
+            {/* NOVO: TABELA DE CONFIGURAÇÃO DA CHAPA E CORTE */}
+            <Card className="mb-6 border-primary/20 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-primary">
+                  Configurações de Corte e Chapa
+                </CardTitle>
+                <p className="text-muted-foreground text-sm">
+                  Ajuste o tamanho do material em estoque e a perda da serra
+                  para recalcular o aproveitamento.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="font-bold">Largura da Chapa (mm)</Label>
+                    <Input
+                      className="bg-muted/50 font-mono"
+                      onChange={(e) =>
+                        handleNumberChange('sheetWidth', e.target.value)
+                      }
+                      type="number"
+                      value={config.sheetWidth}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold">Altura da Chapa (mm)</Label>
+                    <Input
+                      className="bg-muted/50 font-mono"
+                      onChange={(e) =>
+                        handleNumberChange('sheetHeight', e.target.value)
+                      }
+                      type="number"
+                      value={config.sheetHeight}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold text-amber-700">
+                      Espessura do Disco (mm)
+                    </Label>
+                    <Input
+                      className="border-amber-200 bg-amber-50 font-mono"
+                      onChange={(e) =>
+                        handleNumberChange('sawKerf', e.target.value)
+                      }
+                      title="Perda de material por cada passagem de serra (Saw Kerf)"
+                      type="number"
+                      value={config.sawKerf}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Plano de Corte Otimizado</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-10">
+                {sheets.map((sheet, index) => {
+                  const areaTotalChapa = config.sheetWidth * config.sheetHeight;
+                  const aproveitamento = (
+                    (sheet.usedArea / areaTotalChapa) *
+                    100
+                  ).toFixed(1);
+
+                  return (
+                    <div key={index}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <div>
+                          <h3 className="inline-block font-bold text-lg">
+                            Chapa {index + 1}
+                          </h3>
+                          <span className="ml-2 font-normal text-muted-foreground text-sm">
+                            (Espessura: {sheet.thick}mm | {config.sheetWidth}x
+                            {config.sheetHeight}mm)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {/* Nova dica para o utilizador */}
+                          <span className="hidden text-muted-foreground text-xs italic sm:inline-block">
+                            Duplo clique para girar
+                          </span>
+                          <span
+                            className={`rounded px-3 py-1 font-mono text-sm ${Number(aproveitamento) > 75 ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}
+                          >
+                            Aproveitamento Algoritmo: {aproveitamento}%
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* <pre>{JSON.stringify(sheet.items, null, 2)}</pre> */}
+
+                      {/* O NOSSO NOVO COMPONENTE INTERATIVO */}
+                      <NestingBoard
+                        colorMap={colorMap}
+                        items={sheet.items}
+                        onChange={(newItems) =>
+                          setNestingSheets((prev) =>
+                            prev.map((s, i) =>
+                              i === index ? { ...s, items: newItems } : s
+                            )
+                          )
+                        }
+                        sawKerf={config.sawKerf}
+                        sheetHeight={config.sheetHeight}
+                        sheetWidth={config.sheetWidth}
+                      />
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
-
-      <BOMPrint bom={bom} config={config} ref={printRef} />
+      <BOMPrint
+        bom={bom}
+        colorMap={colorMap}
+        config={config}
+        nestingSheets={nestingSheets}
+        ref={printRef}
+      />
     </div>
   );
 }

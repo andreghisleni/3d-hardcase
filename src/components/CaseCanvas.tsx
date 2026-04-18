@@ -14,9 +14,8 @@ const METAL_PROPS = { metalness: 0.9, roughness: 0.2 };
 const MATA_JUNTA_COLOR = '#9ba3a8';
 const MATA_JUNTA_PROPS = { metalness: 0.7, roughness: 0.5 };
 
-// Cores de Seleção (Highlight)
-const HL_WOOD = '#fcd34d'; // Amarelo vibrante
-const HL_METAL = '#60a5fa'; // Azul vibrante
+const HL_WOOD = '#fcd34d';
+const HL_METAL = '#60a5fa';
 
 const THICK = 0.025;
 const MET_THICK = 0.002;
@@ -26,17 +25,20 @@ function getCol(baseColor: string, hlColor: string, isHighlighted: boolean) {
   return isHighlighted ? hlColor : baseColor;
 }
 
+// FERRAGENS AGORA RECEBEM O PROP "exp" PARA AFASTAR DO CENTRO
 function BallCorner({
   position,
   hl,
+  exp = 0,
 }: {
   position: [number, number, number];
   hl: boolean;
+  exp?: number;
 }) {
   const adjPos = [
-    position[0] + Math.sign(position[0]) * EPS,
-    position[1] + Math.sign(position[1]) * EPS,
-    position[2] + Math.sign(position[2]) * EPS,
+    position[0] + Math.sign(position[0]) * (EPS + exp),
+    position[1] + Math.sign(position[1]) * (EPS + exp),
+    position[2] + Math.sign(position[2]) * (EPS + exp),
   ];
   return (
     <mesh position={adjPos as [number, number, number]}>
@@ -58,6 +60,7 @@ function LBracket({
   in1,
   in2,
   hl,
+  exp = 0,
 }: {
   axis: 'x' | 'y' | 'z';
   len: number;
@@ -65,19 +68,21 @@ function LBracket({
   in1: number;
   in2: number;
   hl: boolean;
+  exp?: number;
 }) {
   let ox = 0,
     oy = 0,
     oz = 0;
+  // in1 e in2 apontam para dentro (-1 ou 1). O negativo deles aponta para fora, perfeito para a explosão!
   if (axis === 'z') {
-    ox = -in1 * EPS;
-    oy = -in2 * EPS;
+    ox = -in1 * (EPS + exp);
+    oy = -in2 * (EPS + exp);
   } else if (axis === 'x') {
-    oy = -in1 * EPS;
-    oz = -in2 * EPS;
+    oy = -in1 * (EPS + exp);
+    oz = -in2 * (EPS + exp);
   } else {
-    ox = -in1 * EPS;
-    oz = -in2 * EPS;
+    ox = -in1 * (EPS + exp);
+    oz = -in2 * (EPS + exp);
   }
   const adjPos = [pos[0] + ox, pos[1] + oy, pos[2] + oz];
 
@@ -98,6 +103,7 @@ function LBracket({
     p2 = [(in1 * MET_THICK) / 2, 0, (in2 * THICK) / 2];
     s2 = [MET_THICK, len, THICK];
   }
+
   return (
     <group position={adjPos as [number, number, number]}>
       <mesh position={p1 as any}>
@@ -128,20 +134,22 @@ function MataJunta({
   qY,
   dirZ,
   hl,
+  exp = 0,
 }: {
   pos: [number, number, number];
   qX: number;
   qY: number;
   dirZ: number;
   hl: boolean;
+  exp?: number;
 }) {
   const legZ = 0.045,
     thick = 0.032,
     mThick = 0.003,
     eps = EPS * 4;
-  const px = pos[0] + qX * eps,
-    py = pos[1] + qY * eps,
-    pz = pos[2];
+  const px = pos[0] + qX * (eps + exp);
+  const py = pos[1] + qY * (eps + exp);
+  const pz = pos[2] + dirZ * exp;
   const inX = -qX,
     inY = -qY;
   const col = getCol(MATA_JUNTA_COLOR, HL_METAL, hl);
@@ -185,26 +193,30 @@ function PerfilHibridoMachoFemea({
   zPos,
   invert = false,
   hl,
+  exp = 0,
 }: {
   w: number;
   h: number;
   zPos: number;
   invert?: boolean;
   hl: boolean;
+  exp?: number;
 }) {
   const rimThick = 0.008,
     rimDepth = 0.022;
   const aw = w + EPS * 2,
     ah = h + EPS * 2;
   const dirZ = Math.sign(zPos);
+  const zOffset = dirZ * (EPS + exp); // Explode no eixo Z
+
   const ridgeThick = 0.004,
     ridgeW = rimDepth / 2 - 0.002;
   const offsetMacho = invert ? ridgeW / 2 : -ridgeW / 2;
   const col = getCol(ALUMINUM_COLOR, HL_METAL, hl);
 
   return (
-    <group position={[0, 0, zPos + dirZ * EPS]}>
-      <mesh position={[0, ah / 2 - rimDepth / 2, 0]}>
+    <group position={[0, 0, zPos + zOffset]}>
+      <mesh position={[0, ah / 2 - rimDepth / 2 + exp, 0]}>
         <boxGeometry args={[aw, rimDepth, rimThick]} />
         <meshStandardMaterial
           color={col}
@@ -213,7 +225,7 @@ function PerfilHibridoMachoFemea({
           emissiveIntensity={0.2}
         />
       </mesh>
-      <mesh position={[0, -ah / 2 + rimDepth / 2, 0]}>
+      <mesh position={[0, -ah / 2 + rimDepth / 2 - exp, 0]}>
         <boxGeometry args={[aw, rimDepth, rimThick]} />
         <meshStandardMaterial
           color={col}
@@ -222,7 +234,7 @@ function PerfilHibridoMachoFemea({
           emissiveIntensity={0.2}
         />
       </mesh>
-      <mesh position={[aw / 2 - rimDepth / 2, 0, 0]}>
+      <mesh position={[aw / 2 - rimDepth / 2 + exp, 0, 0]}>
         <boxGeometry args={[rimDepth, ah - 2 * rimDepth, rimThick]} />
         <meshStandardMaterial
           color={col}
@@ -231,7 +243,7 @@ function PerfilHibridoMachoFemea({
           emissiveIntensity={0.2}
         />
       </mesh>
-      <mesh position={[-aw / 2 + rimDepth / 2, 0, 0]}>
+      <mesh position={[-aw / 2 + rimDepth / 2 - exp, 0, 0]}>
         <boxGeometry args={[rimDepth, ah - 2 * rimDepth, rimThick]} />
         <meshStandardMaterial
           color={col}
@@ -240,10 +252,11 @@ function PerfilHibridoMachoFemea({
           emissiveIntensity={0.2}
         />
       </mesh>
+
       <mesh
         position={[
           0,
-          ah / 2 - rimDepth / 2 + offsetMacho,
+          ah / 2 - rimDepth / 2 + offsetMacho + exp,
           dirZ * (rimThick / 2 + ridgeThick / 2),
         ]}
       >
@@ -253,7 +266,7 @@ function PerfilHibridoMachoFemea({
       <mesh
         position={[
           0,
-          -ah / 2 + rimDepth / 2 - offsetMacho,
+          -ah / 2 + rimDepth / 2 - offsetMacho - exp,
           dirZ * (rimThick / 2 + ridgeThick / 2),
         ]}
       >
@@ -262,7 +275,7 @@ function PerfilHibridoMachoFemea({
       </mesh>
       <mesh
         position={[
-          aw / 2 - rimDepth / 2 + offsetMacho,
+          aw / 2 - rimDepth / 2 + offsetMacho + exp,
           0,
           dirZ * (rimThick / 2 + ridgeThick / 2),
         ]}
@@ -272,7 +285,7 @@ function PerfilHibridoMachoFemea({
       </mesh>
       <mesh
         position={[
-          -aw / 2 + rimDepth / 2 - offsetMacho,
+          -aw / 2 + rimDepth / 2 - offsetMacho - exp,
           0,
           dirZ * (rimThick / 2 + ridgeThick / 2),
         ]}
@@ -288,13 +301,15 @@ function Handle({
   position,
   rotation = [0, 0, 0],
   hl,
+  exp = 0,
 }: {
   position: [number, number, number];
   rotation?: [number, number, number];
   hl: boolean;
+  exp?: number;
 }) {
   const adjPos = [
-    position[0] + Math.sign(position[0]) * EPS,
+    position[0] + Math.sign(position[0]) * (EPS + exp),
     position[1],
     position[2],
   ];
@@ -324,14 +339,16 @@ function Handle({
 function LatchHalf({
   position,
   hl,
+  exp = 0,
 }: {
   position: [number, number, number];
   hl: boolean;
+  exp?: number;
 }) {
   const adjPos = [
-    position[0] + Math.sign(position[0]) * EPS,
+    position[0] + Math.sign(position[0]) * (EPS + exp),
     position[1],
-    position[2] + Math.sign(position[2]) * EPS,
+    position[2] + Math.sign(position[2]) * (EPS + exp),
   ];
   return (
     <mesh position={adjPos as [number, number, number]}>
@@ -352,12 +369,14 @@ function RackRail({
   isLeft,
   isFront,
   hl,
+  exp = 0,
 }: {
   h: number;
   pos: [number, number, number];
   isLeft: boolean;
   isFront: boolean;
   hl: boolean;
+  exp?: number;
 }) {
   const w = 0.016,
     d = 0.016,
@@ -365,8 +384,11 @@ function RackRail({
   const dirX = isLeft ? 1 : -1,
     dirZ = isFront ? -1 : 1;
   const col = getCol('#222', HL_METAL, hl);
+
+  const adjPos = [pos[0] + dirX * exp, pos[1], pos[2]];
+
   return (
-    <group position={pos}>
+    <group position={adjPos as [number, number, number]}>
       <mesh position={[(dirX * th) / 2, 0, (dirZ * d) / 2]}>
         <boxGeometry args={[th, h, d]} />
         <meshStandardMaterial
@@ -409,25 +431,25 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
   const LID_OFFSET = config.lidOffset * scale;
   const DRAWER_OFFSET = config.drawerOffset * scale;
 
+  // O NOVO FATOR DE EXPLOSÃO APLICADO GLOBALMENTE
+  const EXP = config.explodeOffset * scale;
+
   const drawerH = config.hasDrawer ? config.drawerUnits * U_MM * scale : 0;
   const railH = internalH - drawerH;
   const railPosY = -internalH / 2 + drawerH + railH / 2;
 
-  // LÓGICA CIRÚRGICA DE SELEÇÃO: Matches Exatos de Textos
   const hlWoodBodyTB =
     highlighted.includes('Teto / Base (Peça Única)') ||
     highlighted.includes('Corpo: Teto / Base');
   const hlWoodBodySides =
     highlighted.includes('Laterais (Peça Única)') ||
     highlighted.includes('Corpo: Laterais');
-
   const hlWoodLidTB =
     highlighted.includes('Teto / Base (Peça Única)') ||
     highlighted.includes('Tampas: Teto/Base');
   const hlWoodLidSides =
     highlighted.includes('Laterais (Peça Única)') ||
     highlighted.includes('Tampas: Laterais');
-
   const hlWoodFaces =
     highlighted.includes('Faces (Fundo/Tampas)') ||
     highlighted.includes('Tampas: Faces');
@@ -444,7 +466,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
     highlighted.includes('Cantoneira L (Tampas)') ||
     highlighted.includes('Cantoneira L (Mestra)');
   const hlProfile = highlighted.includes('Perfil Encaixe (Bocas)');
-  const hlMataJunta = highlighted.includes('Mata-junta Alumínio');
+  const hlMataJunta = highlighted.includes('Mata-junta (Acabamento Aço)');
   const hlRailFront = highlighted.includes('Trilho Rack Frontal');
   const hlRailBack = highlighted.includes('Trilho Rack Traseiro');
   const hlCorners = highlighted.includes('Canto Bola (Ball Corner)');
@@ -494,45 +516,46 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
 
         <group position={[0, h / 2, 0]}>
           <group>
-            {/* Madeira Corpo */}
+            {/* MADEIRA CORPO COM EXPLODE */}
             <WoodMesh
               args={[w, t, d]}
               hl={hlWoodBodyTB}
-              pos={[0, h / 2 - t / 2, 0]}
+              pos={[0, h / 2 - t / 2 + EXP, 0]}
             />
             <WoodMesh
               args={[w, t, d]}
               hl={hlWoodBodyTB}
-              pos={[0, -h / 2 + t / 2, 0]}
+              pos={[0, -h / 2 + t / 2 - EXP, 0]}
             />
             <WoodMesh
               args={[t, h - 2 * t, d]}
               hl={hlWoodBodySides}
-              pos={[-w / 2 + t / 2, 0, 0]}
+              pos={[-w / 2 + t / 2 - EXP, 0, 0]}
             />
             <WoodMesh
               args={[t, h - 2 * t, d]}
               hl={hlWoodBodySides}
-              pos={[w / 2 - t / 2, 0, 0]}
+              pos={[w / 2 - t / 2 + EXP, 0, 0]}
             />
             {!config.hasBackLid && (
               <WoodMesh
                 args={[w - 2 * t, h - 2 * t, t]}
                 hl={hlWoodFaces}
-                pos={[0, 0, -d / 2 + t / 2]}
+                pos={[0, 0, -d / 2 + t / 2 - EXP]}
               />
             )}
             {!config.hasFrontLid && (
               <WoodMesh
                 args={[w - 2 * t, h - 2 * t, t]}
                 hl={hlWoodFaces}
-                pos={[0, 0, d / 2 - t / 2]}
+                pos={[0, 0, d / 2 - t / 2 + EXP]}
               />
             )}
 
-            {/* Alumínio Corpo */}
+            {/* ALUMÍNIO CORPO COM EXPLODE */}
             <LBracket
               axis="z"
+              exp={EXP}
               hl={hlLAngleBody}
               in1={-1}
               in2={-1}
@@ -541,6 +564,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             />
             <LBracket
               axis="z"
+              exp={EXP}
               hl={hlLAngleBody}
               in1={1}
               in2={-1}
@@ -549,6 +573,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             />
             <LBracket
               axis="z"
+              exp={EXP}
               hl={hlLAngleBody}
               in1={1}
               in2={1}
@@ -557,6 +582,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             />
             <LBracket
               axis="z"
+              exp={EXP}
               hl={hlLAngleBody}
               in1={-1}
               in2={1}
@@ -567,6 +593,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             {config.hasFrontLid && (
               <>
                 <PerfilHibridoMachoFemea
+                  exp={EXP}
                   h={h}
                   hl={hlProfile}
                   invert={false}
@@ -581,6 +608,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 ].map((p, i) => (
                   <MataJunta
                     dirZ={-1}
+                    exp={EXP}
                     hl={hlMataJunta}
                     key={`mj-bf-${i}`}
                     pos={[(p[0] * w) / 2, (p[1] * h) / 2, d / 2]}
@@ -593,6 +621,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             {config.hasBackLid && (
               <>
                 <PerfilHibridoMachoFemea
+                  exp={EXP}
                   h={h}
                   hl={hlProfile}
                   invert={false}
@@ -607,6 +636,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 ].map((p, i) => (
                   <MataJunta
                     dirZ={1}
+                    exp={EXP}
                     hl={hlMataJunta}
                     key={`mj-bb-${i}`}
                     pos={[(p[0] * w) / 2, (p[1] * h) / 2, -d / 2]}
@@ -618,10 +648,10 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             )}
           </group>
 
-          {/* Trilhos Rack */}
           {railH > 0 && (
             <>
               <RackRail
+                exp={EXP}
                 h={railH}
                 hl={hlRailFront}
                 isFront={true}
@@ -629,6 +659,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 pos={[-internalW / 2, railPosY, d / 2 - railRecess]}
               />
               <RackRail
+                exp={EXP}
                 h={railH}
                 hl={hlRailFront}
                 isFront={true}
@@ -638,6 +669,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               {config.hasBackLid && (
                 <>
                   <RackRail
+                    exp={EXP}
                     h={railH}
                     hl={hlRailBack}
                     isFront={false}
@@ -645,6 +677,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                     pos={[-internalW / 2, railPosY, -d / 2 + railRecess]}
                   />
                   <RackRail
+                    exp={EXP}
                     h={railH}
                     hl={hlRailBack}
                     isFront={false}
@@ -656,7 +689,6 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             </>
           )}
 
-          {/* Gaveta */}
           {config.hasDrawer &&
             (() => {
               const drwD = d - 0.05,
@@ -677,37 +709,36 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                   <DrawerWoodMesh
                     args={[internalW, dtRaw, drwD]}
                     hl={hlDrwCover}
-                    pos={[0, coverY, baseZ]}
+                    pos={[0, coverY + EXP, baseZ]}
                   />
                   <group position={[0, boxY, baseZ + DRAWER_OFFSET]}>
                     <DrawerWoodMesh
                       args={[drwW, drwH, dtRaw]}
                       hl={hlDrwFrontBack}
-                      pos={[0, 0, drwD / 2 - dtRaw / 2]}
+                      pos={[0, 0, drwD / 2 - dtRaw / 2 + EXP]}
                     />
                     <DrawerWoodMesh
                       args={[drwW, drwH, dtRaw]}
                       hl={hlDrwFrontBack}
-                      pos={[0, 0, -drwD / 2 + dtRaw / 2]}
+                      pos={[0, 0, -drwD / 2 + dtRaw / 2 - EXP]}
                     />
                     <DrawerWoodMesh
                       args={[dtRaw, drwH, drwD - 2 * dtRaw]}
                       hl={hlDrwSides}
-                      pos={[-drwW / 2 + dtRaw / 2, 0, 0]}
+                      pos={[-drwW / 2 + dtRaw / 2 - EXP, 0, 0]}
                     />
                     <DrawerWoodMesh
                       args={[dtRaw, drwH, drwD - 2 * dtRaw]}
                       hl={hlDrwSides}
-                      pos={[drwW / 2 - dtRaw / 2, 0, 0]}
+                      pos={[drwW / 2 - dtRaw / 2 + EXP, 0, 0]}
                     />
                     <DrawerWoodMesh
                       args={[drwW - 2 * dtRaw, dtRaw, drwD - 2 * dtRaw]}
                       hl={hlDrwBase}
-                      pos={[0, -drwH / 2 + dtRaw / 2, 0]}
+                      pos={[0, -drwH / 2 + dtRaw / 2 - EXP, 0]}
                     />
 
-                    {/* Corrediças */}
-                    <mesh position={[-drwW / 2 - slideW / 2, 0, 0]}>
+                    <mesh position={[-drwW / 2 - slideW / 2 - EXP, 0, 0]}>
                       <boxGeometry args={[slideW, drwH * 0.4, drwD]} />
                       <meshStandardMaterial
                         color={getCol('#a0a0a0', HL_METAL, hlDrawerSlides)}
@@ -717,7 +748,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                         roughness={0.3}
                       />
                     </mesh>
-                    <mesh position={[drwW / 2 + slideW / 2, 0, 0]}>
+                    <mesh position={[drwW / 2 + slideW / 2 + EXP, 0, 0]}>
                       <boxGeometry args={[slideW, drwH * 0.4, drwD]} />
                       <meshStandardMaterial
                         color={getCol('#a0a0a0', HL_METAL, hlDrawerSlides)}
@@ -734,13 +765,15 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
 
           {bodyCorners.map((p, i) => (
             <BallCorner
+              exp={EXP}
               hl={hlCorners}
               key={`body-corner-${i}`}
               position={[(p[0] * w) / 2, (p[1] * h) / 2, (p[2] * d) / 2]}
             />
           ))}
-          <Handle hl={hlHandles} position={[w / 2 + 0.005, 0, 0]} />
+          <Handle exp={EXP} hl={hlHandles} position={[w / 2 + 0.005, 0, 0]} />
           <Handle
+            exp={EXP}
             hl={hlHandles}
             position={[-w / 2 - 0.005, 0, 0]}
             rotation={[0, Math.PI, 0]}
@@ -750,10 +783,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             latchYPositions.map((y, i) => (
               <group key={`front-latch-b-${i}`}>
                 <LatchHalf
+                  exp={EXP}
                   hl={hlCatches}
                   position={[w / 2 + 0.006, y, d / 2 - 0.02]}
                 />
                 <LatchHalf
+                  exp={EXP}
                   hl={hlCatches}
                   position={[-w / 2 - 0.006, y, d / 2 - 0.02]}
                 />
@@ -763,47 +798,50 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             latchYPositions.map((y, i) => (
               <group key={`back-latch-b-${i}`}>
                 <LatchHalf
+                  exp={EXP}
                   hl={hlCatches}
                   position={[w / 2 + 0.006, y, -d / 2 + 0.02]}
                 />
                 <LatchHalf
+                  exp={EXP}
                   hl={hlCatches}
                   position={[-w / 2 - 0.006, y, -d / 2 + 0.02]}
                 />
               </group>
             ))}
 
-          {/* Tampa Frontal */}
+          {/* TAMPA FRONTAL COM EXPLODE */}
           {config.hasFrontLid && (
             <group position={[0, 0, d / 2 + ld / 2 + LID_OFFSET]}>
               <WoodMesh
                 args={[w, t, ld]}
                 hl={hlWoodLidTB}
-                pos={[0, h / 2 - t / 2, 0]}
+                pos={[0, h / 2 - t / 2 + EXP, 0]}
               />
               <WoodMesh
                 args={[w, t, ld]}
                 hl={hlWoodLidTB}
-                pos={[0, -h / 2 + t / 2, 0]}
+                pos={[0, -h / 2 + t / 2 - EXP, 0]}
               />
               <WoodMesh
                 args={[t, h - 2 * t, ld]}
                 hl={hlWoodLidSides}
-                pos={[-w / 2 + t / 2, 0, 0]}
+                pos={[-w / 2 + t / 2 - EXP, 0, 0]}
               />
               <WoodMesh
                 args={[t, h - 2 * t, ld]}
                 hl={hlWoodLidSides}
-                pos={[w / 2 - t / 2, 0, 0]}
+                pos={[w / 2 - t / 2 + EXP, 0, 0]}
               />
               <WoodMesh
                 args={[w - 2 * t, h - 2 * t, t]}
                 hl={hlWoodFaces}
-                pos={[0, 0, ld / 2 - t / 2]}
+                pos={[0, 0, ld / 2 - t / 2 + EXP]}
               />
 
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={-1}
@@ -812,6 +850,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={-1}
@@ -820,6 +859,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={1}
@@ -828,6 +868,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={1}
@@ -836,6 +877,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="x"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={-1}
@@ -844,6 +886,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="x"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={-1}
@@ -852,6 +895,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="y"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={-1}
@@ -860,6 +904,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="y"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={-1}
@@ -868,6 +913,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
 
               <PerfilHibridoMachoFemea
+                exp={EXP}
                 h={h}
                 hl={hlProfile}
                 invert={true}
@@ -882,6 +928,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               ].map((p, i) => (
                 <MataJunta
                   dirZ={1}
+                  exp={EXP}
                   hl={hlMataJunta}
                   key={`mj-lid-${i}`}
                   pos={[(p[0] * w) / 2, (p[1] * h) / 2, -ld / 2]}
@@ -896,6 +943,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 [-1, -1, 1],
               ].map((p, i) => (
                 <BallCorner
+                  exp={EXP}
                   hl={hlCorners}
                   key={`fl-corner-${i}`}
                   position={[(p[0] * w) / 2, (p[1] * h) / 2, (p[2] * ld) / 2]}
@@ -904,10 +952,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               {latchYPositions.map((y, i) => (
                 <group key={`front-latch-lid-${i}`}>
                   <LatchHalf
+                    exp={EXP}
                     hl={hlCatches}
                     position={[w / 2 + 0.006, y, -ld / 2 + 0.02]}
                   />
                   <LatchHalf
+                    exp={EXP}
                     hl={hlCatches}
                     position={[-w / 2 - 0.006, y, -ld / 2 + 0.02]}
                   />
@@ -916,37 +966,38 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             </group>
           )}
 
-          {/* Tampa Traseira */}
+          {/* TAMPA TRASEIRA COM EXPLODE */}
           {config.hasBackLid && (
             <group position={[0, 0, -(d / 2 + ld / 2 + LID_OFFSET)]}>
               <WoodMesh
                 args={[w, t, ld]}
                 hl={hlWoodLidTB}
-                pos={[0, h / 2 - t / 2, 0]}
+                pos={[0, h / 2 - t / 2 + EXP, 0]}
               />
               <WoodMesh
                 args={[w, t, ld]}
                 hl={hlWoodLidTB}
-                pos={[0, -h / 2 + t / 2, 0]}
+                pos={[0, -h / 2 + t / 2 - EXP, 0]}
               />
               <WoodMesh
                 args={[t, h - 2 * t, ld]}
                 hl={hlWoodLidSides}
-                pos={[-w / 2 + t / 2, 0, 0]}
+                pos={[-w / 2 + t / 2 - EXP, 0, 0]}
               />
               <WoodMesh
                 args={[t, h - 2 * t, ld]}
                 hl={hlWoodLidSides}
-                pos={[w / 2 - t / 2, 0, 0]}
+                pos={[w / 2 - t / 2 + EXP, 0, 0]}
               />
               <WoodMesh
                 args={[w - 2 * t, h - 2 * t, t]}
                 hl={hlWoodFaces}
-                pos={[0, 0, -ld / 2 + t / 2]}
+                pos={[0, 0, -ld / 2 + t / 2 - EXP]}
               />
 
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={-1}
@@ -955,6 +1006,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={-1}
@@ -963,6 +1015,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={1}
@@ -971,6 +1024,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="z"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={1}
@@ -979,6 +1033,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="x"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={1}
@@ -987,6 +1042,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="x"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={1}
@@ -995,6 +1051,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="y"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={-1}
                 in2={1}
@@ -1003,6 +1060,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
               <LBracket
                 axis="y"
+                exp={EXP}
                 hl={hlLAngleLid}
                 in1={1}
                 in2={1}
@@ -1011,6 +1069,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
 
               <PerfilHibridoMachoFemea
+                exp={EXP}
                 h={h}
                 hl={hlProfile}
                 invert={true}
@@ -1025,6 +1084,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               ].map((p, i) => (
                 <MataJunta
                   dirZ={-1}
+                  exp={EXP}
                   hl={hlMataJunta}
                   key={`mj-lid-${i}`}
                   pos={[(p[0] * w) / 2, (p[1] * h) / 2, ld / 2]}
@@ -1039,6 +1099,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 [-1, -1, -1],
               ].map((p, i) => (
                 <BallCorner
+                  exp={EXP}
                   hl={hlCorners}
                   key={`bl-corner-${i}`}
                   position={[(p[0] * w) / 2, (p[1] * h) / 2, (p[2] * ld) / 2]}
@@ -1047,10 +1108,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               {latchYPositions.map((y, i) => (
                 <group key={`back-latch-lid-${i}`}>
                   <LatchHalf
+                    exp={EXP}
                     hl={hlCatches}
                     position={[w / 2 + 0.006, y, ld / 2 - 0.02]}
                   />
                   <LatchHalf
+                    exp={EXP}
                     hl={hlCatches}
                     position={[-w / 2 - 0.006, y, ld / 2 - 0.02]}
                   />
