@@ -1,4 +1,11 @@
-import { ContactShadows, Environment, OrbitControls } from '@react-three/drei';
+import {
+  Billboard,
+  ContactShadows,
+  Environment,
+  Line,
+  OrbitControls,
+  Text,
+} from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import type { CaseConfig } from '@/lib/calculator';
 
@@ -16,6 +23,7 @@ const MATA_JUNTA_PROPS = { metalness: 0.7, roughness: 0.5 };
 
 const HL_WOOD = '#fcd34d';
 const HL_METAL = '#60a5fa';
+const COTA_COLOR = '#dc2626'; // Vermelho técnico para as cotas
 
 const THICK = 0.025;
 const MET_THICK = 0.002;
@@ -25,7 +33,70 @@ function getCol(baseColor: string, hlColor: string, isHighlighted: boolean) {
   return isHighlighted ? hlColor : baseColor;
 }
 
-// FERRAGENS AGORA RECEBEM O PROP "exp" PARA AFASTAR DO CENTRO
+// --- NOVO: COMPONENTE DE COTA 3D (DIMENSION LINE) ---
+function Cota3D({
+  start,
+  end,
+  label,
+  offset,
+}: {
+  start: [number, number, number];
+  end: [number, number, number];
+  label: string;
+  offset: [number, number, number];
+}) {
+  const p1 = [start[0] + offset[0], start[1] + offset[1], start[2] + offset[2]];
+  const p2 = [end[0] + offset[0], end[1] + offset[1], end[2] + offset[2]];
+  const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
+
+  return (
+    <group>
+      {/* Linha principal da cota */}
+      <Line color={COTA_COLOR} lineWidth={2} points={[p1 as any, p2 as any]} />
+
+      {/* Linhas de chamada (tracejadas/transparentes até ao objeto) */}
+      <Line
+        color={COTA_COLOR}
+        lineWidth={1}
+        opacity={0.3}
+        points={[start as any, p1 as any]}
+        transparent
+      />
+      <Line
+        color={COTA_COLOR}
+        lineWidth={1}
+        opacity={0.3}
+        points={[end as any, p2 as any]}
+        transparent
+      />
+
+      {/* Pontos nas extremidades */}
+      <mesh position={p1 as any}>
+        <sphereGeometry args={[0.004, 8, 8]} />
+        <meshBasicMaterial color={COTA_COLOR} />
+      </mesh>
+      <mesh position={p2 as any}>
+        <sphereGeometry args={[0.004, 8, 8]} />
+        <meshBasicMaterial color={COTA_COLOR} />
+      </mesh>
+
+      {/* Texto sempre virado para a câmara */}
+      <Billboard position={mid as any}>
+        <Text
+          color={COTA_COLOR}
+          fontSize={0.035}
+          fontWeight="bold"
+          outlineColor="#ffffff"
+          outlineWidth={0.005}
+          position={[0, 0.02, 0]}
+        >
+          {label}
+        </Text>
+      </Billboard>
+    </group>
+  );
+}
+
 function BallCorner({
   position,
   hl,
@@ -73,7 +144,6 @@ function LBracket({
   let ox = 0,
     oy = 0,
     oz = 0;
-  // in1 e in2 apontam para dentro (-1 ou 1). O negativo deles aponta para fora, perfeito para a explosão!
   if (axis === 'z') {
     ox = -in1 * (EPS + exp);
     oy = -in2 * (EPS + exp);
@@ -207,8 +277,7 @@ function PerfilHibridoMachoFemea({
   const aw = w + EPS * 2,
     ah = h + EPS * 2;
   const dirZ = Math.sign(zPos);
-  const zOffset = dirZ * (EPS + exp); // Explode no eixo Z
-
+  const zOffset = dirZ * (EPS + exp);
   const ridgeThick = 0.004,
     ridgeW = rimDepth / 2 - 0.002;
   const offsetMacho = invert ? ridgeW / 2 : -ridgeW / 2;
@@ -252,7 +321,6 @@ function PerfilHibridoMachoFemea({
           emissiveIntensity={0.2}
         />
       </mesh>
-
       <mesh
         position={[
           0,
@@ -384,9 +452,7 @@ function RackRail({
   const dirX = isLeft ? 1 : -1,
     dirZ = isFront ? -1 : 1;
   const col = getCol('#222', HL_METAL, hl);
-
   const adjPos = [pos[0] + dirX * exp, pos[1], pos[2]];
-
   return (
     <group position={adjPos as [number, number, number]}>
       <mesh position={[(dirX * th) / 2, 0, (dirZ * d) / 2]}>
@@ -430,8 +496,6 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
   const latchYPositions = config.catchesPerLid === 2 ? [0] : [h / 4, -h / 4];
   const LID_OFFSET = config.lidOffset * scale;
   const DRAWER_OFFSET = config.drawerOffset * scale;
-
-  // O NOVO FATOR DE EXPLOSÃO APLICADO GLOBALMENTE
   const EXP = config.explodeOffset * scale;
 
   const drawerH = config.hasDrawer ? config.drawerUnits * U_MM * scale : 0;
@@ -506,7 +570,7 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-[#f0f0f0]">
-      <Canvas camera={{ position: [1.3, 0.9, 1.3], fov: 40 }} shadows>
+      <Canvas camera={{ position: [1.3, 0.9, 1.3], fov: 45 }} shadows>
         <color args={['#e0e0e0']} attach="background" />
         <ambientLight intensity={1.5} />
         <directionalLight castShadow intensity={2.5} position={[5, 10, 10]} />
@@ -515,8 +579,50 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
         <Environment preset="city" />
 
         <group position={[0, h / 2, 0]}>
+          {/* AS COTAS PRINCIPAIS */}
+          <group name="DimensionLines">
+            {/* Altura Interna (U) - Esquerda */}
+            <Cota3D
+              end={[-w / 2, internalH / 2, d / 2]}
+              label={`${config.units}U`}
+              offset={[-0.15, 0, 0]}
+              start={[-w / 2, -internalH / 2, d / 2]}
+            />
+            {/* Profundidade Principal - Direita */}
+            <Cota3D
+              end={[w / 2, h / 2, -d / 2]}
+              label={`${config.depth} mm`}
+              offset={[0.15, 0, 0]}
+              start={[w / 2, h / 2, d / 2]}
+            />
+            {/* Largura Standard (19") - Topo */}
+            <Cota3D
+              end={[internalW / 2, h / 2, d / 2]}
+              label={`19" (482.6 mm)`}
+              offset={[0, 0.15, 0]}
+              start={[-internalW / 2, h / 2, d / 2]}
+            />
+            {/* Profundidade Tampa Frontal - (Visível apenas se houver tampa) */}
+            {config.hasFrontLid && (
+              <Cota3D
+                end={[w / 2, h / 2, d / 2 + ld + LID_OFFSET]}
+                label={`${config.lidDepth} mm`}
+                offset={[0.15, 0, 0]}
+                start={[w / 2, h / 2, d / 2 + LID_OFFSET]}
+              />
+            )}
+            {/* Profundidade Tampa Traseira - (Visível apenas se houver tampa) */}
+            {config.hasBackLid && (
+              <Cota3D
+                end={[w / 2, h / 2, -d / 2 - ld - LID_OFFSET]}
+                label={`${config.lidDepth} mm`}
+                offset={[0.15, 0, 0]}
+                start={[w / 2, h / 2, -d / 2 - LID_OFFSET]}
+              />
+            )}
+          </group>
+
           <group>
-            {/* MADEIRA CORPO COM EXPLODE */}
             <WoodMesh
               args={[w, t, d]}
               hl={hlWoodBodyTB}
@@ -552,7 +658,6 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               />
             )}
 
-            {/* ALUMÍNIO CORPO COM EXPLODE */}
             <LBracket
               axis="z"
               exp={EXP}
@@ -810,7 +915,6 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               </group>
             ))}
 
-          {/* TAMPA FRONTAL COM EXPLODE */}
           {config.hasFrontLid && (
             <group position={[0, 0, d / 2 + ld / 2 + LID_OFFSET]}>
               <WoodMesh
@@ -966,7 +1070,6 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
             </group>
           )}
 
-          {/* TAMPA TRASEIRA COM EXPLODE */}
           {config.hasBackLid && (
             <group position={[0, 0, -(d / 2 + ld / 2 + LID_OFFSET)]}>
               <WoodMesh

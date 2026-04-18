@@ -56,16 +56,6 @@ export default function App() {
 
   const [highlighted, setHighlighted] = useState<string[]>([]);
   const bom = useMemo(() => calculateHardcase(config), [config]);
-  const sheets = useMemo(
-    () =>
-      calculateNesting(
-        bom.woodCuts,
-        config.sheetWidth,
-        config.sheetHeight,
-        config.sawKerf
-      ),
-    [bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf]
-  );
 
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -76,25 +66,29 @@ export default function App() {
   }, [bom.woodCuts]);
 
   const [nestingSheets, setNestingSheets] = useState<any[]>([]);
+  // NOVO: Guarda a "assinatura" da última vez que o algoritmo automático rodou
+  const [lastSignature, setLastSignature] = useState("");
 
-  // Inicializa o layout quando o BOM muda
+  // Cria uma assinatura de texto única para as medidas atuais
+  const currentSignature = JSON.stringify({
+    cuts: bom.woodCuts, w: config.sheetWidth, h: config.sheetHeight, k: config.sawKerf
+  });
+
+  // ATUALIZADO: O Vigilante de Atualização Automática
   useEffect(() => {
-    const autoSheets = calculateNesting(
-      bom.woodCuts,
-      config.sheetWidth,
-      config.sheetHeight,
-      config.sawKerf
-    );
-    setNestingSheets(
-      autoSheets.map((s, sIdx) => ({
-        ...s,
-        items: s.items.map((it: any, i: number) => ({
-          ...it,
-          id: `s${sIdx}-i${i}`,
-        })),
-      }))
-    );
-  }, [bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf]);
+    // Se a assinatura for igual, não faz nada! (Protege o layout importado)
+    if (currentSignature === lastSignature) { return; }
+
+    // Se chegou aqui, é porque você mexeu nos sliders. Recalcula o automático!
+    const autoSheets = calculateNesting(bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf);
+    setNestingSheets(autoSheets.map((s, sIdx) => ({
+      ...s,
+      items: s.items.map((it: any, i: number) => ({ ...it, id: `s${sIdx}-i${i}` }))
+    })));
+
+    // Atualiza a assinatura
+    setLastSignature(currentSignature);
+  }, [currentSignature, lastSignature, bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf]);
 
   const handleExport = () => {
     const project = { config, nestingSheets, date: new Date().toISOString() };
@@ -112,12 +106,34 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+
     reader.onload = (ev) => {
-      const data = JSON.parse(ev.target?.result as string);
-      if (data.config) setConfig(data.config);
-      if (data.nestingSheets) setNestingSheets(data.nestingSheets);
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+
+        if (data.config) {
+          setConfig(data.config);
+
+          // MÁGICA: Pré-calcula a assinatura do ficheiro para avisar o useEffect 
+          // que ele não deve apagar o nosso layout manual!
+          const importedBom = calculateHardcase(data.config);
+          const importedSignature = JSON.stringify({
+            cuts: importedBom.woodCuts, w: data.config.sheetWidth, h: data.config.sheetHeight, k: data.config.sawKerf
+          });
+          setLastSignature(importedSignature);
+        }
+
+        if (data.nestingSheets) {
+          setNestingSheets(data.nestingSheets);
+        }
+      } catch (error) {
+        console.error("Erro ao ler o ficheiro:", error);
+      }
     };
     reader.readAsText(file);
+
+    // Limpa o botão para permitir importar o mesmo ficheiro duas vezes seguidas, se necessário
+    e.target.value = '';
   };
 
   const handleNumberChange = (key: keyof CaseConfig, value: string) => {
@@ -670,7 +686,8 @@ export default function App() {
                 <CardTitle>Plano de Corte Otimizado</CardTitle>
               </CardHeader>
               <CardContent className="space-y-10">
-                {sheets.map((sheet, index) => {
+                {/* A CORREÇÃO ESTÁ AQUI: Trocado sheets.map por nestingSheets.map */}
+                {nestingSheets.map((sheet, index) => {
                   const areaTotalChapa = config.sheetWidth * config.sheetHeight;
                   const aproveitamento = (
                     (sheet.usedArea / areaTotalChapa) *
@@ -679,32 +696,29 @@ export default function App() {
 
                   return (
                     <div key={index}>
-                      <div className="mb-2 flex items-center justify-between">
+                      <div className='mb-2 flex items-center justify-between'>
                         <div>
-                          <h3 className="inline-block font-bold text-lg">
+                          <h3 className='inline-block font-bold text-lg'>
                             Chapa {index + 1}
                           </h3>
-                          <span className="ml-2 font-normal text-muted-foreground text-sm">
+                          <span className='ml-2 font-normal text-muted-foreground text-sm'>
                             (Espessura: {sheet.thick}mm | {config.sheetWidth}x
                             {config.sheetHeight}mm)
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          {/* Nova dica para o utilizador */}
-                          <span className="hidden text-muted-foreground text-xs italic sm:inline-block">
+                          <span className='hidden text-muted-foreground text-xs italic sm:inline-block'>
                             Duplo clique para girar
                           </span>
                           <span
                             className={`rounded px-3 py-1 font-mono text-sm ${Number(aproveitamento) > 75 ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}
                           >
-                            Aproveitamento Algoritmo: {aproveitamento}%
+                            Aproveitamento Estimado: {aproveitamento}%
                           </span>
                         </div>
                       </div>
 
-                      {/* <pre>{JSON.stringify(sheet.items, null, 2)}</pre> */}
-
-                      {/* O NOSSO NOVO COMPONENTE INTERATIVO */}
+                      {/* O NOSSO COMPONENTE INTERATIVO */}
                       <NestingBoard
                         colorMap={colorMap}
                         items={sheet.items}
@@ -717,6 +731,7 @@ export default function App() {
                         }
                         sawKerf={config.sawKerf}
                         sheetHeight={config.sheetHeight}
+                        sheetIndex={index}
                         sheetWidth={config.sheetWidth}
                       />
                     </div>
