@@ -1,10 +1,28 @@
 import React from 'react';
 import type { CalculatedBOM, CaseConfig } from '@/lib/calculator';
 
+interface NestingItem {
+  id: string;
+  part: string;
+  w: number;
+  h: number;
+  x: number;
+  y: number;
+  displayW: number;
+  displayH: number;
+  thick?: number;
+}
+
+interface NestingSheet {
+  items: NestingItem[];
+  usedArea: number;
+  thick?: number;
+}
+
 interface BOMPrintProps {
   bom: CalculatedBOM;
   config: CaseConfig;
-  nestingSheets: any[];
+  nestingSheets: NestingSheet[];
   colorMap: Record<string, string>;
 }
 
@@ -52,8 +70,8 @@ export const BOMPrint = React.forwardRef<HTMLDivElement, BOMPrintProps>(
                   </tr>
                 </thead>
                 <tbody>
-                  {bom.woodCuts.map((cut, i) => (
-                    <tr className="border-gray-300 border-b" key={i}>
+                  {bom.woodCuts.map((cut) => (
+                    <tr className="border-gray-300 border-b" key={cut.part}>
                       <td className="flex items-center gap-2 p-2">
                         <div
                           className="h-3 w-3 rounded-sm border"
@@ -85,8 +103,8 @@ export const BOMPrint = React.forwardRef<HTMLDivElement, BOMPrintProps>(
                   </tr>
                 </thead>
                 <tbody>
-                  {bom.aluminum.map((al, i) => (
-                    <tr className="border-gray-300 border-b" key={i}>
+                  {bom.aluminum.map((al) => (
+                    <tr className="border-gray-300 border-b" key={al.profile}>
                       <td className="p-2">{al.profile}</td>
                       <td className="p-2 text-center">{al.qty}x</td>
                       <td className="p-2 text-right font-mono">
@@ -100,10 +118,10 @@ export const BOMPrint = React.forwardRef<HTMLDivElement, BOMPrintProps>(
                 <p className="mb-1 font-bold text-[10px] text-gray-500 uppercase italic">
                   Total Linear Estimado
                 </p>
-                {bom.aluminumTotals.map((total, i) => (
+                {bom.aluminumTotals.map((total) => (
                   <div
                     className="flex justify-between font-bold text-sm"
-                    key={i}
+                    key={total.profile}
                   >
                     <span>{total.profile}</span>
                     <span>{total.totalMeters.toFixed(2)} m</span>
@@ -122,7 +140,7 @@ export const BOMPrint = React.forwardRef<HTMLDivElement, BOMPrintProps>(
               {bom.hardware.map((hw, i) => (
                 <div
                   className="flex items-center justify-between border border-gray-300 bg-gray-50 p-2"
-                  key={i}
+                  key={i.toString()}
                 >
                   <span className="font-bold text-[11px] uppercase leading-none">
                     {hw.item}
@@ -164,9 +182,12 @@ export const BOMPrint = React.forwardRef<HTMLDivElement, BOMPrintProps>(
                   </div>
 
                   <svg
+                    aria-label={`Diagrama de corte chapa ${idx + 1}`}
                     className="h-auto w-full border border-black bg-white"
+                    role="img"
                     viewBox={`0 0 ${config.sheetWidth} ${config.sheetHeight}`}
                   >
+                    <title>Diagrama de corte chapa {idx + 1}</title>
                     <rect
                       fill="none"
                       height={config.sheetHeight}
@@ -176,7 +197,7 @@ export const BOMPrint = React.forwardRef<HTMLDivElement, BOMPrintProps>(
                       width={config.sheetWidth}
                     />
 
-                    {sheet.items.map((it: any) => {
+                    {sheet.items.map((it) => {
                       const w = it.w - config.sawKerf;
                       const h = it.h - config.sawKerf;
                       const cx = w / 2;

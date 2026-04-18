@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/complexity/noExcessiveCognitiveComplexity: 3D scene with many conditional elements */
 import {
   Billboard,
   ContactShadows,
@@ -29,6 +30,8 @@ const THICK = 0.025;
 const MET_THICK = 0.002;
 const EPS = 0.0005;
 
+type Vector3 = [number, number, number];
+
 function getCol(baseColor: string, hlColor: string, isHighlighted: boolean) {
   return isHighlighted ? hlColor : baseColor;
 }
@@ -40,48 +43,48 @@ function Cota3D({
   label,
   offset,
 }: {
-  start: [number, number, number];
-  end: [number, number, number];
+  start: Vector3;
+  end: Vector3;
   label: string;
-  offset: [number, number, number];
+  offset: Vector3;
 }) {
-  const p1 = [start[0] + offset[0], start[1] + offset[1], start[2] + offset[2]];
-  const p2 = [end[0] + offset[0], end[1] + offset[1], end[2] + offset[2]];
-  const mid = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
+  const p1: Vector3 = [start[0] + offset[0], start[1] + offset[1], start[2] + offset[2]];
+  const p2: Vector3 = [end[0] + offset[0], end[1] + offset[1], end[2] + offset[2]];
+  const mid: Vector3 = [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, (p1[2] + p2[2]) / 2];
 
   return (
     <group>
       {/* Linha principal da cota */}
-      <Line color={COTA_COLOR} lineWidth={2} points={[p1 as any, p2 as any]} />
+      <Line color={COTA_COLOR} lineWidth={2} points={[p1, p2]} />
 
       {/* Linhas de chamada (tracejadas/transparentes até ao objeto) */}
       <Line
         color={COTA_COLOR}
         lineWidth={1}
         opacity={0.3}
-        points={[start as any, p1 as any]}
+        points={[start, p1]}
         transparent
       />
       <Line
         color={COTA_COLOR}
         lineWidth={1}
         opacity={0.3}
-        points={[end as any, p2 as any]}
+        points={[end, p2]}
         transparent
       />
 
       {/* Pontos nas extremidades */}
-      <mesh position={p1 as any}>
+      <mesh position={p1}>
         <sphereGeometry args={[0.004, 8, 8]} />
         <meshBasicMaterial color={COTA_COLOR} />
       </mesh>
-      <mesh position={p2 as any}>
+      <mesh position={p2}>
         <sphereGeometry args={[0.004, 8, 8]} />
         <meshBasicMaterial color={COTA_COLOR} />
       </mesh>
 
       {/* Texto sempre virado para a câmara */}
-      <Billboard position={mid as any}>
+      <Billboard position={mid}>
         <Text
           color={COTA_COLOR}
           fontSize={0.035}
@@ -102,17 +105,17 @@ function BallCorner({
   hl,
   exp = 0,
 }: {
-  position: [number, number, number];
+  position: Vector3;
   hl: boolean;
   exp?: number;
 }) {
-  const adjPos = [
+  const adjPos: Vector3 = [
     position[0] + Math.sign(position[0]) * (EPS + exp),
     position[1] + Math.sign(position[1]) * (EPS + exp),
     position[2] + Math.sign(position[2]) * (EPS + exp),
   ];
   return (
-    <mesh position={adjPos as [number, number, number]}>
+    <mesh position={adjPos}>
       <sphereGeometry args={[0.026, 16, 16]} />
       <meshStandardMaterial
         color={getCol(ALUMINUM_COLOR, HL_METAL, hl)}
@@ -135,7 +138,7 @@ function LBracket({
 }: {
   axis: 'x' | 'y' | 'z';
   len: number;
-  pos: [number, number, number];
+  pos: Vector3;
   in1: number;
   in2: number;
   hl: boolean;
@@ -154,9 +157,12 @@ function LBracket({
     ox = -in1 * (EPS + exp);
     oz = -in2 * (EPS + exp);
   }
-  const adjPos = [pos[0] + ox, pos[1] + oy, pos[2] + oz];
+  const adjPos: Vector3 = [pos[0] + ox, pos[1] + oy, pos[2] + oz];
 
-  let p1, s1, p2, s2;
+  let p1: Vector3;
+  let s1: Vector3;
+  let p2: Vector3;
+  let s2: Vector3;
   if (axis === 'z') {
     p1 = [(in1 * THICK) / 2, (in2 * MET_THICK) / 2, 0];
     s1 = [THICK, MET_THICK, len];
@@ -175,9 +181,9 @@ function LBracket({
   }
 
   return (
-    <group position={adjPos as [number, number, number]}>
-      <mesh position={p1 as any}>
-        <boxGeometry args={s1 as any} />
+    <group position={adjPos}>
+      <mesh position={p1}>
+        <boxGeometry args={s1} />
         <meshStandardMaterial
           color={getCol(ALUMINUM_COLOR, HL_METAL, hl)}
           {...METAL_PROPS}
@@ -185,8 +191,8 @@ function LBracket({
           emissiveIntensity={0.2}
         />
       </mesh>
-      <mesh position={p2 as any}>
-        <boxGeometry args={s2 as any} />
+      <mesh position={p2}>
+        <boxGeometry args={s2} />
         <meshStandardMaterial
           color={getCol(ALUMINUM_COLOR, HL_METAL, hl)}
           {...METAL_PROPS}
@@ -206,7 +212,7 @@ function MataJunta({
   hl,
   exp = 0,
 }: {
-  pos: [number, number, number];
+  pos: Vector3;
   qX: number;
   qY: number;
   dirZ: number;
@@ -371,18 +377,18 @@ function Handle({
   hl,
   exp = 0,
 }: {
-  position: [number, number, number];
-  rotation?: [number, number, number];
+  position: Vector3;
+  rotation?: Vector3;
   hl: boolean;
   exp?: number;
 }) {
-  const adjPos = [
+  const adjPos: Vector3 = [
     position[0] + Math.sign(position[0]) * (EPS + exp),
     position[1],
     position[2],
   ];
   return (
-    <group position={adjPos as [number, number, number]} rotation={rotation}>
+    <group position={adjPos} rotation={rotation}>
       <mesh>
         <boxGeometry args={[0.015, 0.12, 0.16]} />
         <meshStandardMaterial
@@ -409,17 +415,17 @@ function LatchHalf({
   hl,
   exp = 0,
 }: {
-  position: [number, number, number];
+  position: Vector3;
   hl: boolean;
   exp?: number;
 }) {
-  const adjPos = [
+  const adjPos: Vector3 = [
     position[0] + Math.sign(position[0]) * (EPS + exp),
     position[1],
     position[2] + Math.sign(position[2]) * (EPS + exp),
   ];
   return (
-    <mesh position={adjPos as [number, number, number]}>
+    <mesh position={adjPos}>
       <boxGeometry args={[0.012, 0.08, 0.04]} />
       <meshStandardMaterial
         color={getCol(ALUMINUM_COLOR, HL_METAL, hl)}
@@ -440,7 +446,7 @@ function RackRail({
   exp = 0,
 }: {
   h: number;
-  pos: [number, number, number];
+  pos: Vector3;
   isLeft: boolean;
   isFront: boolean;
   hl: boolean;
@@ -452,9 +458,9 @@ function RackRail({
   const dirX = isLeft ? 1 : -1,
     dirZ = isFront ? -1 : 1;
   const col = getCol('#222', HL_METAL, hl);
-  const adjPos = [pos[0] + dirX * exp, pos[1], pos[2]];
+  const adjPos: Vector3 = [pos[0] + dirX * exp, pos[1], pos[2]];
   return (
-    <group position={adjPos as [number, number, number]}>
+    <group position={adjPos}>
       <mesh position={[(dirX * th) / 2, 0, (dirZ * d) / 2]}>
         <boxGeometry args={[th, h, d]} />
         <meshStandardMaterial
@@ -477,6 +483,31 @@ function RackRail({
       </mesh>
     </group>
   );
+}
+
+interface WoodMeshProps {
+  args: [number, number, number];
+  pos: Vector3;
+  hl: boolean;
+  baseColor?: string;
+}
+
+function WoodMesh({ args, pos, hl, baseColor = WOOD_COLOR }: WoodMeshProps) {
+  return (
+    <mesh castShadow position={pos} receiveShadow>
+      <boxGeometry args={args} />
+      <meshStandardMaterial
+        color={getCol(baseColor, HL_WOOD, hl)}
+        emissive={hl ? HL_WOOD : '#000'}
+        emissiveIntensity={0.1}
+        roughness={0.6}
+      />
+    </mesh>
+  );
+}
+
+function DrawerWoodMesh({ args, pos, hl }: Omit<WoodMeshProps, 'baseColor'>) {
+  return <WoodMesh args={args} baseColor={DRAWER_WOOD} hl={hl} pos={pos} />;
 }
 
 export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
@@ -538,35 +569,13 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
   const hlHandles = highlighted.includes('Alça de Embutir');
   const hlDrawerSlides = highlighted.some((p) => p.includes('Corrediça'));
 
-  const WoodMesh = ({ args, pos, hl }: any) => (
-    <mesh castShadow position={pos} receiveShadow>
-      <boxGeometry args={args} />
-      <meshStandardMaterial
-        color={getCol(WOOD_COLOR, HL_WOOD, hl)}
-        emissive={hl ? HL_WOOD : '#000'}
-        emissiveIntensity={0.1}
-        roughness={0.6}
-      />
-    </mesh>
-  );
-
-  const DrawerWoodMesh = ({ args, pos, hl }: any) => (
-    <mesh castShadow position={pos} receiveShadow>
-      <boxGeometry args={args} />
-      <meshStandardMaterial
-        color={getCol(DRAWER_WOOD, HL_WOOD, hl)}
-        emissive={hl ? HL_WOOD : '#000'}
-        emissiveIntensity={0.1}
-        roughness={0.6}
-      />
-    </mesh>
-  );
-
   const bodyCorners: [number, number, number][] = [];
-  if (!config.hasFrontLid)
+  if (!config.hasFrontLid) {
     bodyCorners.push([1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1]);
-  if (!config.hasBackLid)
+  }
+  if (!config.hasBackLid) {
     bodyCorners.push([1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1]);
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl border border-border bg-[#f0f0f0]">
@@ -710,12 +719,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                   [-1, 1],
                   [1, -1],
                   [-1, -1],
-                ].map((p, i) => (
+                ].map((p) => (
                   <MataJunta
                     dirZ={-1}
                     exp={EXP}
                     hl={hlMataJunta}
-                    key={`mj-bf-${i}`}
+                    key={`mj-bf-${p[0]}-${p[1]}`}
                     pos={[(p[0] * w) / 2, (p[1] * h) / 2, d / 2]}
                     qX={p[0]}
                     qY={p[1]}
@@ -738,12 +747,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                   [-1, 1],
                   [1, -1],
                   [-1, -1],
-                ].map((p, i) => (
+                ].map((p) => (
                   <MataJunta
                     dirZ={1}
                     exp={EXP}
                     hl={hlMataJunta}
-                    key={`mj-bb-${i}`}
+                    key={`mj-bb-${p[0]}-${p[1]}`}
                     pos={[(p[0] * w) / 2, (p[1] * h) / 2, -d / 2]}
                     qX={p[0]}
                     qY={p[1]}
@@ -868,11 +877,11 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               );
             })()}
 
-          {bodyCorners.map((p, i) => (
+          {bodyCorners.map((p) => (
             <BallCorner
               exp={EXP}
               hl={hlCorners}
-              key={`body-corner-${i}`}
+              key={`body-corner-${p[0]}-${p[1]}-${p[2]}`}
               position={[(p[0] * w) / 2, (p[1] * h) / 2, (p[2] * d) / 2]}
             />
           ))}
@@ -885,8 +894,8 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
           />
 
           {config.hasFrontLid &&
-            latchYPositions.map((y, i) => (
-              <group key={`front-latch-b-${i}`}>
+            latchYPositions.map((y) => (
+              <group key={`front-latch-b-${y}`}>
                 <LatchHalf
                   exp={EXP}
                   hl={hlCatches}
@@ -900,8 +909,8 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
               </group>
             ))}
           {config.hasBackLid &&
-            latchYPositions.map((y, i) => (
-              <group key={`back-latch-b-${i}`}>
+            latchYPositions.map((y) => (
+              <group key={`back-latch-b-${y}`}>
                 <LatchHalf
                   exp={EXP}
                   hl={hlCatches}
@@ -1029,12 +1038,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 [-1, 1],
                 [1, -1],
                 [-1, -1],
-              ].map((p, i) => (
+              ].map((p) => (
                 <MataJunta
                   dirZ={1}
                   exp={EXP}
                   hl={hlMataJunta}
-                  key={`mj-lid-${i}`}
+                  key={`mj-fl-${p[0]}-${p[1]}`}
                   pos={[(p[0] * w) / 2, (p[1] * h) / 2, -ld / 2]}
                   qX={p[0]}
                   qY={p[1]}
@@ -1045,16 +1054,16 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 [-1, 1, 1],
                 [1, -1, 1],
                 [-1, -1, 1],
-              ].map((p, i) => (
+              ].map((p) => (
                 <BallCorner
                   exp={EXP}
                   hl={hlCorners}
-                  key={`fl-corner-${i}`}
+                  key={`fl-corner-${p[0]}-${p[1]}-${p[2]}`}
                   position={[(p[0] * w) / 2, (p[1] * h) / 2, (p[2] * ld) / 2]}
                 />
               ))}
-              {latchYPositions.map((y, i) => (
-                <group key={`front-latch-lid-${i}`}>
+              {latchYPositions.map((y) => (
+                <group key={`front-latch-lid-${y}`}>
                   <LatchHalf
                     exp={EXP}
                     hl={hlCatches}
@@ -1184,12 +1193,12 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 [-1, 1],
                 [1, -1],
                 [-1, -1],
-              ].map((p, i) => (
+              ].map((p) => (
                 <MataJunta
                   dirZ={-1}
                   exp={EXP}
                   hl={hlMataJunta}
-                  key={`mj-lid-${i}`}
+                  key={`mj-bl-${p[0]}-${p[1]}`}
                   pos={[(p[0] * w) / 2, (p[1] * h) / 2, ld / 2]}
                   qX={p[0]}
                   qY={p[1]}
@@ -1200,16 +1209,16 @@ export function CaseCanvas({ config, highlighted = [] }: CaseCanvasProps) {
                 [-1, 1, -1],
                 [1, -1, -1],
                 [-1, -1, -1],
-              ].map((p, i) => (
+              ].map((p) => (
                 <BallCorner
                   exp={EXP}
                   hl={hlCorners}
-                  key={`bl-corner-${i}`}
+                  key={`bl-corner-${p[0]}-${p[1]}-${p[2]}`}
                   position={[(p[0] * w) / 2, (p[1] * h) / 2, (p[2] * ld) / 2]}
                 />
               ))}
-              {latchYPositions.map((y, i) => (
-                <group key={`back-latch-lid-${i}`}>
+              {latchYPositions.map((y) => (
+                <group key={`back-latch-lid-${y}`}>
                   <LatchHalf
                     exp={EXP}
                     hl={hlCatches}

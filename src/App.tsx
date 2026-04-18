@@ -1,4 +1,4 @@
-import { Download, Printer, RotateCcw, Upload } from 'lucide-react';
+import { Download, Printer, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,24 @@ import {
   calculateHardcase,
   calculateNesting,
 } from './lib/calculator';
+
+interface NestingItem {
+  id: string;
+  part: string;
+  w: number;
+  h: number;
+  x: number;
+  y: number;
+  displayW: number;
+  displayH: number;
+  thick?: number;
+}
+
+interface NestingSheet {
+  items: NestingItem[];
+  usedArea: number;
+  thick?: number;
+}
 
 const DISTINCT_COLORS = [
   '#fecaca',
@@ -59,13 +77,13 @@ export default function App() {
 
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
-    bom.woodCuts.forEach((cut, index) => {
+    for (const [index, cut] of bom.woodCuts.entries()) {
       map[cut.part] = DISTINCT_COLORS[index % DISTINCT_COLORS.length];
-    });
+    }
     return map;
   }, [bom.woodCuts]);
 
-  const [nestingSheets, setNestingSheets] = useState<any[]>([]);
+  const [nestingSheets, setNestingSheets] = useState<NestingSheet[]>([]);
   // NOVO: Guarda a "assinatura" da última vez que o algoritmo automático rodou
   const [lastSignature, setLastSignature] = useState("");
 
@@ -77,13 +95,15 @@ export default function App() {
   // ATUALIZADO: O Vigilante de Atualização Automática
   useEffect(() => {
     // Se a assinatura for igual, não faz nada! (Protege o layout importado)
-    if (currentSignature === lastSignature) { return; }
+    if (currentSignature === lastSignature) {
+      return;
+    }
 
     // Se chegou aqui, é porque você mexeu nos sliders. Recalcula o automático!
     const autoSheets = calculateNesting(bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf);
     setNestingSheets(autoSheets.map((s, sIdx) => ({
       ...s,
-      items: s.items.map((it: any, i: number) => ({ ...it, id: `s${sIdx}-i${i}` }))
+      items: s.items.map((it, i) => ({ ...it, id: `s${sIdx}-i${i}` }))
     })));
 
     // Atualiza a assinatura
@@ -104,7 +124,9 @@ export default function App() {
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     const reader = new FileReader();
 
     reader.onload = (ev) => {
@@ -126,8 +148,8 @@ export default function App() {
         if (data.nestingSheets) {
           setNestingSheets(data.nestingSheets);
         }
-      } catch (error) {
-        console.error("Erro ao ler o ficheiro:", error);
+      } catch {
+        // Erro silencioso ao importar ficheiro inválido
       }
     };
     reader.readAsText(file);
@@ -695,7 +717,7 @@ export default function App() {
                   ).toFixed(1);
 
                   return (
-                    <div key={index}>
+                    <div key={`sheet-${sheet.thick}-${index}`}>
                       <div className='mb-2 flex items-center justify-between'>
                         <div>
                           <h3 className='inline-block font-bold text-lg'>
@@ -731,7 +753,6 @@ export default function App() {
                         }
                         sawKerf={config.sawKerf}
                         sheetHeight={config.sheetHeight}
-                        sheetIndex={index}
                         sheetWidth={config.sheetWidth}
                       />
                     </div>
