@@ -1,4 +1,4 @@
-import { Download, Printer, Upload } from 'lucide-react';
+import { Box, Download, Printer, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import { Button } from '@/components/ui/button';
@@ -85,11 +85,14 @@ export default function App() {
 
   const [nestingSheets, setNestingSheets] = useState<NestingSheet[]>([]);
   // NOVO: Guarda a "assinatura" da última vez que o algoritmo automático rodou
-  const [lastSignature, setLastSignature] = useState("");
+  const [lastSignature, setLastSignature] = useState('');
 
   // Cria uma assinatura de texto única para as medidas atuais
   const currentSignature = JSON.stringify({
-    cuts: bom.woodCuts, w: config.sheetWidth, h: config.sheetHeight, k: config.sawKerf
+    cuts: bom.woodCuts,
+    w: config.sheetWidth,
+    h: config.sheetHeight,
+    k: config.sawKerf,
   });
 
   // ATUALIZADO: O Vigilante de Atualização Automática
@@ -100,15 +103,29 @@ export default function App() {
     }
 
     // Se chegou aqui, é porque você mexeu nos sliders. Recalcula o automático!
-    const autoSheets = calculateNesting(bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf);
-    setNestingSheets(autoSheets.map((s, sIdx) => ({
-      ...s,
-      items: s.items.map((it, i) => ({ ...it, id: `s${sIdx}-i${i}` }))
-    })));
+    const autoSheets = calculateNesting(
+      bom.woodCuts,
+      config.sheetWidth,
+      config.sheetHeight,
+      config.sawKerf
+    );
+    setNestingSheets(
+      autoSheets.map((s, sIdx) => ({
+        ...s,
+        items: s.items.map((it, i) => ({ ...it, id: `s${sIdx}-i${i}` })),
+      }))
+    );
 
     // Atualiza a assinatura
     setLastSignature(currentSignature);
-  }, [currentSignature, lastSignature, bom.woodCuts, config.sheetWidth, config.sheetHeight, config.sawKerf]);
+  }, [
+    currentSignature,
+    lastSignature,
+    bom.woodCuts,
+    config.sheetWidth,
+    config.sheetHeight,
+    config.sawKerf,
+  ]);
 
   const handleExport = () => {
     const project = { config, nestingSheets, date: new Date().toISOString() };
@@ -136,11 +153,14 @@ export default function App() {
         if (data.config) {
           setConfig(data.config);
 
-          // MÁGICA: Pré-calcula a assinatura do ficheiro para avisar o useEffect 
+          // MÁGICA: Pré-calcula a assinatura do ficheiro para avisar o useEffect
           // que ele não deve apagar o nosso layout manual!
           const importedBom = calculateHardcase(data.config);
           const importedSignature = JSON.stringify({
-            cuts: importedBom.woodCuts, w: data.config.sheetWidth, h: data.config.sheetHeight, k: data.config.sawKerf
+            cuts: importedBom.woodCuts,
+            w: data.config.sheetWidth,
+            h: data.config.sheetHeight,
+            k: data.config.sawKerf,
           });
           setLastSignature(importedSignature);
         }
@@ -171,6 +191,134 @@ export default function App() {
         ? prev.filter((i) => i !== itemName)
         : [...prev, itemName]
     );
+  };
+  const exportToFusion360 = () => {
+    const U_MM = 44.45;
+    const INTERNAL_WIDTH = 482.6;
+    const internalH = config.units * U_MM;
+    const h = internalH + config.thickness * 2;
+    const w = INTERNAL_WIDTH + config.thickness * 2;
+    const d = config.depth;
+    const ld = config.lidDepth;
+    const t = config.thickness;
+    const LID_OFFSET = config.lidOffset;
+    const DRAWER_OFFSET = config.drawerOffset;
+
+    let pythonCalls = "";
+
+    // Função mágica: Traduz as coordenadas Centrais do nosso React 3D para as coordenadas de Canto do Fusion (em cm)
+    const addBox = (name: string, boxW: number, boxH: number, boxD: number, cx: number, cy: number, cz: number) => {
+      const fx = (cx - boxW / 2) / 10;
+      const fy = (cy - boxH / 2) / 10;
+      const fz = (cz - boxD / 2) / 10;
+      pythonCalls += `        create_box(root, "${name}", ${boxW / 10}, ${boxH / 10}, ${boxD / 10}, ${fx}, ${fy}, ${fz})\n`;
+    };
+
+    // 1. CORPO PRINCIPAL
+    addBox("Corpo_Teto", w, t, d, 0, h / 2 - t / 2, 0);
+    addBox("Corpo_Base", w, t, d, 0, -h / 2 + t / 2, 0);
+    addBox("Corpo_LatEsq", t, h - 2 * t, d, -w / 2 + t / 2, 0, 0);
+    addBox("Corpo_LatDir", t, h - 2 * t, d, w / 2 - t / 2, 0, 0);
+    if (!config.hasBackLid) { addBox("Corpo_FundoFixo", w - 2 * t, h - 2 * t, t, 0, 0, -d / 2 + t / 2); }
+    if (!config.hasFrontLid) { addBox("Corpo_FrenteFixa", w - 2 * t, h - 2 * t, t, 0, 0, d / 2 - t / 2); }
+
+    // 2. TAMPA FRONTAL
+    if (config.hasFrontLid) {
+      const tz = d / 2 + ld / 2 + LID_OFFSET;
+      addBox("TampaF_Teto", w, t, ld, 0, h / 2 - t / 2, tz);
+      addBox("TampaF_Base", w, t, ld, 0, -h / 2 + t / 2, tz);
+      addBox("TampaF_LatEsq", t, h - 2 * t, ld, -w / 2 + t / 2, 0, tz);
+      addBox("TampaF_LatDir", t, h - 2 * t, ld, w / 2 - t / 2, 0, tz);
+      addBox("TampaF_Face", w - 2 * t, h - 2 * t, t, 0, 0, tz + ld / 2 - t / 2);
+    }
+
+    // 3. TAMPA TRASEIRA
+    if (config.hasBackLid) {
+      const tz = -(d / 2 + ld / 2 + LID_OFFSET);
+      addBox("TampaT_Teto", w, t, ld, 0, h / 2 - t / 2, tz);
+      addBox("TampaT_Base", w, t, ld, 0, -h / 2 + t / 2, tz);
+      addBox("TampaT_LatEsq", t, h - 2 * t, ld, -w / 2 + t / 2, 0, tz);
+      addBox("TampaT_LatDir", t, h - 2 * t, ld, w / 2 - t / 2, 0, tz);
+      addBox("TampaT_Face", w - 2 * t, h - 2 * t, t, 0, 0, tz - ld / 2 + t / 2);
+    }
+
+    // 4. GAVETA
+    if (config.hasDrawer) {
+      const drwD = d - 50;
+      const drwW = INTERNAL_WIDTH - 26;
+      const drwH = config.drawerUnits * U_MM - 25 - config.drawerThickness;
+      const dtRaw = config.drawerThickness;
+      const baseZ = d / 2 - 25 - drwD / 2;
+      const coverY = -internalH / 2 + config.drawerUnits * U_MM - dtRaw / 2;
+      const boxY = -internalH / 2 + 25 + drwH / 2;
+      const gz = baseZ + DRAWER_OFFSET;
+
+      addBox("Gaveta_Cobertura", INTERNAL_WIDTH, dtRaw, drwD, 0, coverY, baseZ);
+      addBox("Gaveta_Frente", drwW, drwH, dtRaw, 0, boxY, gz + drwD / 2 - dtRaw / 2);
+      addBox("Gaveta_Fundo", drwW, drwH, dtRaw, 0, boxY, gz - drwD / 2 + dtRaw / 2);
+      addBox("Gaveta_LatEsq", dtRaw, drwH, drwD - 2 * dtRaw, -drwW / 2 + dtRaw / 2, boxY, gz);
+      addBox("Gaveta_LatDir", dtRaw, drwH, drwD - 2 * dtRaw, drwW / 2 - dtRaw / 2, boxY, gz);
+      addBox("Gaveta_Base", drwW - 2 * dtRaw, dtRaw, drwD - 2 * dtRaw, 0, boxY - drwH / 2 + dtRaw / 2, gz);
+    }
+
+    // Geração do Script Python
+    const script = `
+import adsk.core, adsk.fusion, traceback
+
+def create_box(root, name, w, h, d, x, y, z):
+    # Cria componente
+    occ = root.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    comp = occ.component
+    comp.name = name
+    
+    # Desenha o sketch (Retângulo)
+    sketches = comp.sketches
+    xyPlane = comp.xYConstructionPlane
+    sketch = sketches.add(xyPlane)
+    lines = sketch.sketchCurves.sketchLines
+    lines.addTwoPointRectangle(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(w, h, 0))
+    
+    # Faz a extrusão (Profundidade)
+    prof = sketch.profiles.item(0)
+    extrudes = comp.features.extrudeFeatures
+    extInput = extrudes.createInput(prof, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    distance = adsk.core.ValueInput.createByReal(d)
+    extInput.setDistanceExtent(False, distance)
+    extrudes.add(extInput)
+    
+    # Posiciona no espaço 3D exato
+    matrix = adsk.core.Matrix3D.create()
+    matrix.translation = adsk.core.Vector3D.create(x, y, z)
+    occ.transform = matrix
+
+def run(context):
+    ui = None
+    try:
+        app = adsk.core.Application.get()
+        ui  = app.userInterface
+        
+        # Cria um novo documento paramétrico limpo
+        doc = app.documents.add(adsk.core.DocumentTypes.FusionDesignDocumentType)
+        design = app.activeProduct
+        design.designType = adsk.fusion.DesignTypes.ParametricDesignType
+        root = design.rootComponent
+        
+        # --- INÍCIO DA MONTAGEM GERADA PELO APP ---
+${pythonCalls}
+        # --- FIM DA MONTAGEM ---
+        
+        ui.messageBox('Montagem Paramétrica do Hardcase gerada com sucesso!\\nAs peças de madeira e gavetas foram importadas.\\n\\nNota: Adicione fechos e cantos a partir da sua biblioteca STEP.')
+    except:
+        if ui:
+            ui.messageBox('Falha:\\n{}'.format(traceback.format_exc()))
+`;
+
+    const blob = new Blob([script], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gerar_case_${config.units}U.py`;
+    a.click();
   };
 
   const hasAnyLid = config.hasFrontLid || config.hasBackLid;
@@ -571,6 +719,10 @@ export default function App() {
               <Button onClick={handlePrint}>
                 <Printer className="mr-2 h-4 w-4" /> PDF Oficina
               </Button>
+
+              <Button onClick={exportToFusion360} variant="secondary">
+                <Box className='mr-2 h-4 w-4' /> Fusion 360 (Script)
+              </Button>
             </div>
           </div>
 
@@ -718,18 +870,18 @@ export default function App() {
 
                   return (
                     <div key={`sheet-${sheet.thick}-${index}`}>
-                      <div className='mb-2 flex items-center justify-between'>
+                      <div className="mb-2 flex items-center justify-between">
                         <div>
-                          <h3 className='inline-block font-bold text-lg'>
+                          <h3 className="inline-block font-bold text-lg">
                             Chapa {index + 1}
                           </h3>
-                          <span className='ml-2 font-normal text-muted-foreground text-sm'>
+                          <span className="ml-2 font-normal text-muted-foreground text-sm">
                             (Espessura: {sheet.thick}mm | {config.sheetWidth}x
                             {config.sheetHeight}mm)
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className='hidden text-muted-foreground text-xs italic sm:inline-block'>
+                          <span className="hidden text-muted-foreground text-xs italic sm:inline-block">
                             Duplo clique para girar
                           </span>
                           <span
