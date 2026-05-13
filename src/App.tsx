@@ -326,7 +326,7 @@ ${pythonCalls}
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
   return (
-    <div className="flex min-h-screen flex-col gap-8 bg-background p-8 text-foreground lg:flex-row">
+    <div className="flex flex-1 flex-col gap-8 overflow-hidden bg-background p-8 text-foreground lg:flex-row">
       <Card className="flex max-h-[90vh] w-full shrink-0 flex-col overflow-hidden lg:w-[450px]">
         <Tabs className="flex h-full w-full flex-col" defaultValue="config">
           <CardHeader className="shrink-0 border-b pb-4">
